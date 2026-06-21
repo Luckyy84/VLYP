@@ -7,8 +7,17 @@ trimming, and compressing gameplay or desktop moments without accounts or
 cloud storage.
 
 > [!NOTE]
-> VLYP is currently in early development. The repository presently contains
-> the initial application icon and its reproducible build tooling.
+> VLYP is currently a capture-engine prototype. It is not ready for daily use.
+
+## Current Prototype
+
+- Tauri 2 and React diagnostics interface
+- Windows Graphics Capture with Direct3D 11 surfaces
+- Media Foundation H.264 encoding with hardware acceleration preferred
+- Disk-backed rolling MP4 segments from 30 seconds to 5 minutes
+- Replay saves through pure-Rust MP4 remuxing without video re-encoding
+- SQLite-backed local clip library
+- `Ctrl+Shift+F10` global replay hotkey
 
 ## Planned Features
 
@@ -33,6 +42,26 @@ Rebuild the generated assets with Python 3 and Pillow:
 ```powershell
 python -m pip install -r requirements.txt
 python scripts/build_icon.py
+```
+
+## Development
+
+VLYP requires Windows 11, Rust 1.96, the MSVC C++ build tools, Windows SDK,
+Node.js 24, and pnpm 11.
+
+```powershell
+corepack pnpm install
+corepack pnpm tauri dev
+```
+
+Run all local checks with:
+
+```powershell
+corepack pnpm check
+corepack pnpm build
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
 ## License

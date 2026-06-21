@@ -10,6 +10,9 @@ venv/
 build/
 dist/
 target/
+node_modules/
+.scaffold-vlyp/
+src-tauri/gen/
 tmp/
 *.log
 
