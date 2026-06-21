@@ -49,9 +49,9 @@ const idleTelemetry: CaptureTelemetry = {
   bitrate: 0,
   framesEncoded: 0,
   droppedFrames: 0,
+  bufferBytes: 0,
   bufferedSeconds: 0,
   segmentCount: 0,
-  bufferBytes: 0,
 };
 
 function formatDuration(seconds: number) {
@@ -97,13 +97,28 @@ function StatusPill({ state }: { state: RecorderState }) {
   );
 }
 
-function AppHeader({ state }: { state: RecorderState }) {
+function AppHeader({
+  state,
+  settingsOpen,
+  onToggleSettings,
+}: {
+  state: RecorderState;
+  settingsOpen: boolean;
+  onToggleSettings: () => void;
+}) {
   return (
     <header className="app-header">
       <div className="brand-wordmark">VLYP</div>
       <div className="header-right">
         <StatusPill state={state} />
-        <button className="icon-button" type="button" aria-label="Settings">⚙</button>
+        <button
+          className={settingsOpen ? "icon-button active" : "icon-button"}
+          type="button"
+          aria-label="Settings"
+          onClick={onToggleSettings}
+        >
+          ⚙
+        </button>
       </div>
     </header>
   );
@@ -193,14 +208,100 @@ function RecentClips({ clips, copyPath }: { clips: ClipRecord[]; copyPath: (path
   );
 }
 
+function SettingsPanel({
+  active,
+  sources,
+  sourceId,
+  bufferSeconds,
+  bitrateMbps,
+  captureCursor,
+  setSourceId,
+  setBufferSeconds,
+  setBitrateMbps,
+  setCaptureCursor,
+  onClose,
+}: {
+  active: boolean;
+  sources: CaptureSource[];
+  sourceId: string;
+  bufferSeconds: number;
+  bitrateMbps: number;
+  captureCursor: boolean;
+  setSourceId: (value: string) => void;
+  setBufferSeconds: (value: number) => void;
+  setBitrateMbps: (value: number) => void;
+  setCaptureCursor: (value: boolean) => void;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <button className="settings-backdrop" type="button" aria-label="Close settings" onClick={onClose} />
+
+      <aside className="settings-panel">
+        <div className="settings-panel-header">
+          <div>
+            <h2>Settings</h2>
+            <p>{active ? "Stop recording to edit capture options." : "Local capture options."}</p>
+          </div>
+          <button type="button" onClick={onClose}>Close</button>
+        </div>
+
+        <label>
+          <span>Source</span>
+          <select value={sourceId} disabled={active} onChange={(event) => setSourceId(event.target.value)}>
+            {sources.length === 0 ? (
+              <option value="">No source found</option>
+            ) : sources.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.kind === "monitor" ? "Display" : source.processName ?? "Window"} · {source.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Replay Length</span>
+          <select value={bufferSeconds} disabled={active} onChange={(event) => setBufferSeconds(Number(event.target.value))}>
+            <option value={30}>30 seconds</option>
+            <option value={60}>60 seconds</option>
+            <option value={120}>2 minutes</option>
+            <option value={300}>5 minutes</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Quality</span>
+          <select value={bitrateMbps} disabled={active} onChange={(event) => setBitrateMbps(Number(event.target.value))}>
+            <option value={10}>Small · 10 Mbps</option>
+            <option value={20}>Balanced · 20 Mbps</option>
+            <option value={35}>High · 35 Mbps</option>
+            <option value={60}>Max · 60 Mbps</option>
+          </select>
+        </label>
+
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={captureCursor}
+            disabled={active}
+            onChange={(event) => setCaptureCursor(event.target.checked)}
+          />
+          <span>Capture cursor</span>
+        </label>
+      </aside>
+    </>
+  );
+}
+
 function App() {
   const [sources, setSources] = useState<CaptureSource[]>([]);
   const [clips, setClips] = useState<ClipRecord[]>([]);
   const [telemetry, setTelemetry] = useState(idleTelemetry);
   const [sourceId, setSourceId] = useState("");
-  const [bufferSeconds] = useState(60);
-  const [bitrateMbps] = useState(20);
-  const [captureCursor] = useState(true);
+  const [bufferSeconds, setBufferSeconds] = useState(60);
+  const [bitrateMbps, setBitrateMbps] = useState(20);
+  const [captureCursor, setCaptureCursor] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
@@ -305,7 +406,27 @@ function App() {
   return (
     <div className="page-shell">
       <div className="app-frame">
-        <AppHeader state={telemetry.state} />
+        <AppHeader
+          state={telemetry.state}
+          settingsOpen={settingsOpen}
+          onToggleSettings={() => setSettingsOpen((open) => !open)}
+        />
+
+        {settingsOpen && (
+          <SettingsPanel
+            active={active}
+            sources={sources}
+            sourceId={sourceId}
+            bufferSeconds={bufferSeconds}
+            bitrateMbps={bitrateMbps}
+            captureCursor={captureCursor}
+            setSourceId={setSourceId}
+            setBufferSeconds={setBufferSeconds}
+            setBitrateMbps={setBitrateMbps}
+            setCaptureCursor={setCaptureCursor}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
 
         <main className="home-content">
           <PrimaryActions
