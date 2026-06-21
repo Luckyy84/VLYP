@@ -43,7 +43,7 @@ input:disabled {
 
 select {
   width: 100%;
-  height: 42px;
+  height: 44px;
   padding: 0 12px;
   color: #f5f5f5;
   background: #090909;
@@ -64,11 +64,10 @@ select:focus {
 }
 
 .app-frame {
-  position: relative;
   display: flex;
-  flex-direction: column;
   width: 100vw;
   height: 100vh;
+  flex-direction: column;
   overflow: hidden;
   background: #080808;
 }
@@ -138,8 +137,11 @@ select:focus {
 .section-heading > span,
 .clip-copy p,
 .clip-actions button,
-.settings-panel label > span,
-.settings-check span {
+.settings-page-header p,
+.settings-page-header button,
+.settings-card label > span,
+.settings-check span,
+.settings-note {
   color: #9b9b9b;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11px;
@@ -148,13 +150,15 @@ select:focus {
   text-transform: uppercase;
 }
 
-.home-content {
+.home-content,
+.settings-content {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
   gap: 24px;
   padding: 24px 32px 32px;
+  overflow: hidden;
 }
 
 .primary-actions {
@@ -395,68 +399,57 @@ select:focus {
   background: #090909;
 }
 
-.settings-backdrop {
-  position: fixed;
-  inset: 58px 0 0;
-  z-index: 20;
-  padding: 0;
-  background: #0009;
-  border: 0;
-  border-radius: 0;
-  cursor: default;
+.settings-content {
+  gap: 28px;
 }
 
-.settings-panel {
-  position: fixed;
-  top: 72px;
-  right: 28px;
-  z-index: 21;
-  display: grid;
-  gap: 18px;
-  width: min(380px, calc(100vw - 56px));
-  padding: 18px;
-  border: 1px solid #2d2d2d;
-  border-radius: 10px;
-  background: #0d0d0d;
-  box-shadow: 0 28px 80px #000;
-}
-
-.settings-panel-header {
+.settings-page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #242424;
+  gap: 18px;
 }
 
-.settings-panel h2 {
+.settings-page-header p {
+  margin: 0 0 10px;
+}
+
+.settings-page-header h1 {
   margin: 0;
-  color: #f5f5f5;
-  font-size: 18px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  color: #fff;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
 }
 
-.settings-panel p {
-  margin: 7px 0 0;
-  color: #8f8f8f;
-  font-size: 13px;
-}
-
-.settings-panel-header button {
-  min-height: 30px;
-  padding: 0 10px;
-  color: #bcbcbc;
+.settings-page-header button {
+  min-height: 38px;
+  padding: 0 14px;
   background: #090909;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
 }
 
-.settings-panel label {
+.settings-card {
+  display: grid;
+  gap: 24px;
+  max-width: 680px;
+  padding: 22px;
+  border: 1px solid #252525;
+  border-radius: 8px;
+  background: #141414;
+}
+
+.settings-note {
+  padding-bottom: 18px;
+  border-bottom: 1px solid #242424;
+  line-height: 1.6;
+}
+
+.settings-fields {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-fields label {
   display: grid;
   gap: 8px;
 }
@@ -465,7 +458,7 @@ select:focus {
   display: flex !important;
   align-items: center;
   gap: 10px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid #2d2d2d;
   border-radius: 8px;
@@ -494,7 +487,12 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
-  .home-content {
+  .home-content,
+  .settings-content {
     padding: 20px;
+  }
+
+  .settings-card {
+    max-width: none;
   }
 }
