@@ -54,12 +54,6 @@ const idleTelemetry: CaptureTelemetry = {
   bufferBytes: 0,
 };
 
-function formatBytes(bytes: number) {
-  if (bytes <= 0) return "0 MB";
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -79,6 +73,7 @@ function stateToStatus(state: RecorderState) {
 
 function statusLabel(state: RecorderState) {
   if (state === "recording" || state === "starting") return "Recording";
+  if (state === "stopping") return "Stopping";
   if (state === "failed") return "Failed";
   return "Ready";
 }
@@ -163,74 +158,6 @@ function PrimaryActions({
   );
 }
 
-function CaptureSettings({
-  active,
-  sources,
-  sourceId,
-  setSourceId,
-  bufferSeconds,
-  setBufferSeconds,
-  bitrateMbps,
-  setBitrateMbps,
-  captureCursor,
-  setCaptureCursor,
-}: {
-  active: boolean;
-  sources: CaptureSource[];
-  sourceId: string;
-  setSourceId: (value: string) => void;
-  bufferSeconds: number;
-  setBufferSeconds: (value: number) => void;
-  bitrateMbps: number;
-  setBitrateMbps: (value: number) => void;
-  captureCursor: boolean;
-  setCaptureCursor: (value: boolean) => void;
-}) {
-  return (
-    <section className="settings-grid" aria-label="Capture settings">
-      <label>
-        <span>Source</span>
-        <select value={sourceId} disabled={active} onChange={(event) => setSourceId(event.target.value)}>
-          {sources.length === 0 ? (
-            <option value="">No source found</option>
-          ) : (
-            sources.map((source) => (
-              <option key={source.id} value={source.id}>
-                {source.kind === "monitor" ? "Display" : source.processName ?? "Window"} · {source.name}
-              </option>
-            ))
-          )}
-        </select>
-      </label>
-
-      <label>
-        <span>Replay Length</span>
-        <select value={bufferSeconds} disabled={active} onChange={(event) => setBufferSeconds(Number(event.target.value))}>
-          <option value={30}>30 seconds</option>
-          <option value={60}>1 minute</option>
-          <option value={120}>2 minutes</option>
-          <option value={300}>5 minutes</option>
-        </select>
-      </label>
-
-      <label>
-        <span>Quality</span>
-        <select value={bitrateMbps} disabled={active} onChange={(event) => setBitrateMbps(Number(event.target.value))}>
-          <option value={10}>Small · 10 Mbps</option>
-          <option value={20}>Balanced · 20 Mbps</option>
-          <option value={35}>High · 35 Mbps</option>
-          <option value={60}>Max · 60 Mbps</option>
-        </select>
-      </label>
-
-      <label className="switch-row">
-        <input type="checkbox" checked={captureCursor} disabled={active} onChange={(event) => setCaptureCursor(event.target.checked)} />
-        <span>Cursor</span>
-      </label>
-    </section>
-  );
-}
-
 function RecentClips({ clips, copyPath }: { clips: ClipRecord[]; copyPath: (path: string) => void }) {
   const recentClips = clips.slice(0, 3);
 
@@ -245,9 +172,9 @@ function RecentClips({ clips, copyPath }: { clips: ClipRecord[]; copyPath: (path
         {recentClips.length === 0 ? (
           <li className="empty-row">Your saved replays will appear here.</li>
         ) : (
-          recentClips.map((clip) => (
+          recentClips.map((clip, index) => (
             <li key={clip.id}>
-              <div className="clip-thumb">
+              <div className={`clip-thumb clip-thumb-${index + 1}`}>
                 <span>{formatDuration(clip.durationSeconds)}</span>
               </div>
               <div className="clip-copy">
@@ -255,8 +182,8 @@ function RecentClips({ clips, copyPath }: { clips: ClipRecord[]; copyPath: (path
                 <p>{formatDuration(clip.durationSeconds)} · {clip.width}×{clip.height}</p>
               </div>
               <div className="clip-actions">
-                <button type="button" disabled>Trim</button>
-                <button type="button" onClick={() => copyPath(clip.path)}>Folder</button>
+                <button type="button" disabled>✂ Trim</button>
+                <button type="button" onClick={() => copyPath(clip.path)}>▱ Folder</button>
               </div>
             </li>
           ))
@@ -271,9 +198,9 @@ function App() {
   const [clips, setClips] = useState<ClipRecord[]>([]);
   const [telemetry, setTelemetry] = useState(idleTelemetry);
   const [sourceId, setSourceId] = useState("");
-  const [bufferSeconds, setBufferSeconds] = useState(60);
-  const [bitrateMbps, setBitrateMbps] = useState(20);
-  const [captureCursor, setCaptureCursor] = useState(true);
+  const [bufferSeconds] = useState(60);
+  const [bitrateMbps] = useState(20);
+  const [captureCursor] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
@@ -389,19 +316,6 @@ function App() {
             saveReplay={saveReplay}
           />
 
-          <CaptureSettings
-            active={active}
-            sources={sources}
-            sourceId={sourceId}
-            setSourceId={setSourceId}
-            bufferSeconds={bufferSeconds}
-            setBufferSeconds={setBufferSeconds}
-            bitrateMbps={bitrateMbps}
-            setBitrateMbps={setBitrateMbps}
-            captureCursor={captureCursor}
-            setCaptureCursor={setCaptureCursor}
-          />
-
           {(error || telemetry.lastError || notice) && (
             <div className={error || telemetry.lastError ? "message error" : "message"}>
               <span>{error ?? telemetry.lastError ?? notice}</span>
@@ -410,15 +324,7 @@ function App() {
           )}
 
           <div className="divider" />
-
           <RecentClips clips={clips} copyPath={copyPath} />
-
-          <section className="micro-stats" aria-label="Capture stats">
-            <div><span>Buffer</span><strong>{telemetry.bufferedSeconds.toFixed(1)}s</strong></div>
-            <div><span>FPS</span><strong>{telemetry.frameRate.toFixed(1)}</strong></div>
-            <div><span>Size</span><strong>{formatBytes(telemetry.bufferBytes)}</strong></div>
-            <div><span>Source</span><strong>{telemetry.sourceName ?? selectedSource?.name ?? "None"}</strong></div>
-          </section>
         </main>
       </div>
     </div>
