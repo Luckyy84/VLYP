@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
 type RecorderState = "idle" | "starting" | "recording" | "stopping" | "failed";
+type AppPage = "home" | "settings";
 
 interface CaptureSource {
   id: string;
@@ -98,13 +99,13 @@ function StatusPill({ state }: { state: RecorderState }) {
 }
 
 function AppHeader({
+  page,
   state,
-  settingsOpen,
-  onToggleSettings,
+  onOpenSettings,
 }: {
+  page: AppPage;
   state: RecorderState;
-  settingsOpen: boolean;
-  onToggleSettings: () => void;
+  onOpenSettings: () => void;
 }) {
   return (
     <header className="app-header">
@@ -112,10 +113,10 @@ function AppHeader({
       <div className="header-right">
         <StatusPill state={state} />
         <button
-          className={settingsOpen ? "icon-button active" : "icon-button"}
+          className={page === "settings" ? "icon-button active" : "icon-button"}
           type="button"
           aria-label="Settings"
-          onClick={onToggleSettings}
+          onClick={onOpenSettings}
         >
           ⚙
         </button>
@@ -208,7 +209,7 @@ function RecentClips({ clips, copyPath }: { clips: ClipRecord[]; copyPath: (path
   );
 }
 
-function SettingsPanel({
+function SettingsPage({
   active,
   sources,
   sourceId,
@@ -219,7 +220,7 @@ function SettingsPanel({
   setBufferSeconds,
   setBitrateMbps,
   setCaptureCursor,
-  onClose,
+  onBack,
 }: {
   active: boolean;
   sources: CaptureSource[];
@@ -231,65 +232,69 @@ function SettingsPanel({
   setBufferSeconds: (value: number) => void;
   setBitrateMbps: (value: number) => void;
   setCaptureCursor: (value: boolean) => void;
-  onClose: () => void;
+  onBack: () => void;
 }) {
   return (
-    <>
-      <button className="settings-backdrop" type="button" aria-label="Close settings" onClick={onClose} />
+    <main className="settings-content">
+      <div className="settings-page-header">
+        <div>
+          <p>Settings</p>
+          <h1>Capture Options</h1>
+        </div>
+        <button type="button" onClick={onBack}>Back</button>
+      </div>
 
-      <aside className="settings-panel">
-        <div className="settings-panel-header">
-          <div>
-            <h2>Settings</h2>
-            <p>{active ? "Stop recording to edit capture options." : "Local capture options."}</p>
-          </div>
-          <button type="button" onClick={onClose}>Close</button>
+      <section className="settings-card">
+        <div className="settings-note">
+          {active ? "Stop recording to change capture options." : "Configure how VLYP captures and saves replay clips."}
         </div>
 
-        <label>
-          <span>Source</span>
-          <select value={sourceId} disabled={active} onChange={(event) => setSourceId(event.target.value)}>
-            {sources.length === 0 ? (
-              <option value="">No source found</option>
-            ) : sources.map((source) => (
-              <option key={source.id} value={source.id}>
-                {source.kind === "monitor" ? "Display" : source.processName ?? "Window"} · {source.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="settings-fields">
+          <label>
+            <span>Source</span>
+            <select value={sourceId} disabled={active} onChange={(event) => setSourceId(event.target.value)}>
+              {sources.length === 0 ? (
+                <option value="">No source found</option>
+              ) : sources.map((source) => (
+                <option key={source.id} value={source.id}>
+                  {source.kind === "monitor" ? "Display" : source.processName ?? "Window"} · {source.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          <span>Replay Length</span>
-          <select value={bufferSeconds} disabled={active} onChange={(event) => setBufferSeconds(Number(event.target.value))}>
-            <option value={30}>30 seconds</option>
-            <option value={60}>60 seconds</option>
-            <option value={120}>2 minutes</option>
-            <option value={300}>5 minutes</option>
-          </select>
-        </label>
+          <label>
+            <span>Replay Length</span>
+            <select value={bufferSeconds} disabled={active} onChange={(event) => setBufferSeconds(Number(event.target.value))}>
+              <option value={30}>30 seconds</option>
+              <option value={60}>60 seconds</option>
+              <option value={120}>2 minutes</option>
+              <option value={300}>5 minutes</option>
+            </select>
+          </label>
 
-        <label>
-          <span>Quality</span>
-          <select value={bitrateMbps} disabled={active} onChange={(event) => setBitrateMbps(Number(event.target.value))}>
-            <option value={10}>Small · 10 Mbps</option>
-            <option value={20}>Balanced · 20 Mbps</option>
-            <option value={35}>High · 35 Mbps</option>
-            <option value={60}>Max · 60 Mbps</option>
-          </select>
-        </label>
+          <label>
+            <span>Quality</span>
+            <select value={bitrateMbps} disabled={active} onChange={(event) => setBitrateMbps(Number(event.target.value))}>
+              <option value={10}>Small · 10 Mbps</option>
+              <option value={20}>Balanced · 20 Mbps</option>
+              <option value={35}>High · 35 Mbps</option>
+              <option value={60}>Max · 60 Mbps</option>
+            </select>
+          </label>
 
-        <label className="settings-check">
-          <input
-            type="checkbox"
-            checked={captureCursor}
-            disabled={active}
-            onChange={(event) => setCaptureCursor(event.target.checked)}
-          />
-          <span>Capture cursor</span>
-        </label>
-      </aside>
-    </>
+          <label className="settings-check">
+            <input
+              type="checkbox"
+              checked={captureCursor}
+              disabled={active}
+              onChange={(event) => setCaptureCursor(event.target.checked)}
+            />
+            <span>Capture cursor</span>
+          </label>
+        </div>
+      </section>
+    </main>
   );
 }
 
@@ -301,7 +306,7 @@ function App() {
   const [bufferSeconds, setBufferSeconds] = useState(60);
   const [bitrateMbps, setBitrateMbps] = useState(20);
   const [captureCursor, setCaptureCursor] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [page, setPage] = useState<AppPage>("home");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
@@ -407,13 +412,13 @@ function App() {
     <div className="page-shell">
       <div className="app-frame">
         <AppHeader
+          page={page}
           state={telemetry.state}
-          settingsOpen={settingsOpen}
-          onToggleSettings={() => setSettingsOpen((open) => !open)}
+          onOpenSettings={() => setPage((currentPage) => currentPage === "settings" ? "home" : "settings")}
         />
 
-        {settingsOpen && (
-          <SettingsPanel
+        {page === "settings" ? (
+          <SettingsPage
             active={active}
             sources={sources}
             sourceId={sourceId}
@@ -424,29 +429,29 @@ function App() {
             setBufferSeconds={setBufferSeconds}
             setBitrateMbps={setBitrateMbps}
             setCaptureCursor={setCaptureCursor}
-            onClose={() => setSettingsOpen(false)}
+            onBack={() => setPage("home")}
           />
+        ) : (
+          <main className="home-content">
+            <PrimaryActions
+              active={active}
+              busy={busy || !sourceId}
+              canSave={active && telemetry.segmentCount > 0}
+              toggleRecording={toggleRecording}
+              saveReplay={saveReplay}
+            />
+
+            {(error || telemetry.lastError || notice) && (
+              <div className={error || telemetry.lastError ? "message error" : "message"}>
+                <span>{error ?? telemetry.lastError ?? notice}</span>
+                <button type="button" onClick={() => { setError(undefined); setNotice(undefined); }}>Dismiss</button>
+              </div>
+            )}
+
+            <div className="divider" />
+            <RecentClips clips={clips} copyPath={copyPath} />
+          </main>
         )}
-
-        <main className="home-content">
-          <PrimaryActions
-            active={active}
-            busy={busy || !sourceId}
-            canSave={active && telemetry.segmentCount > 0}
-            toggleRecording={toggleRecording}
-            saveReplay={saveReplay}
-          />
-
-          {(error || telemetry.lastError || notice) && (
-            <div className={error || telemetry.lastError ? "message error" : "message"}>
-              <span>{error ?? telemetry.lastError ?? notice}</span>
-              <button type="button" onClick={() => { setError(undefined); setNotice(undefined); }}>Dismiss</button>
-            </div>
-          )}
-
-          <div className="divider" />
-          <RecentClips clips={clips} copyPath={copyPath} />
-        </main>
       </div>
     </div>
   );
