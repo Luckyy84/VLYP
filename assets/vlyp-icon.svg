@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">VLYP application icon</title>
+  <desc id="desc">A white pixel-inspired abstract V centered on a rounded black square.</desc>
+  <rect x="64" y="64" width="896" height="896" rx="192" fill="#000000"/>
+  <path
+    fill="#ffffff"
+    d="M224 256h128v192h64v128h64v128h64V576h64V448h64V256h128v256h-64v128h-64v128h-64v64H416v-64h-64V640h-64V512h-64V256Z"
+  />
+</svg>
