@@ -7,12 +7,17 @@ mod state;
 mod storage;
 mod types;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, WindowEvent,
+    Emitter, Manager, RunEvent, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+
+#[derive(Default)]
+struct ExitState(AtomicBool);
 
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -33,6 +38,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            app.manage(ExitState::default());
+
             let app_data = app.path().app_data_dir()?;
             let video_directory = app.path().video_dir()?;
             app.manage(
@@ -71,7 +78,10 @@ pub fn run() {
                     "save_replay" => {
                         let _ = app.emit("vlyp://save-replay", ());
                     }
-                    "quit" => app.exit(0),
+                    "quit" => {
+                        app.state::<ExitState>().0.store(true, Ordering::SeqCst);
+                        app.exit(0);
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -107,8 +117,8 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
                 api.prevent_close();
+                let _ = window.hide();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -121,6 +131,16 @@ pub fn run() {
             commands::save_replay,
             commands::list_clips,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running VLYP");
+        .build(tauri::generate_context!())
+        .expect("error while building VLYP")
+        .run(|app, event| {
+            if let RunEvent::ExitRequested { api, .. } = event {
+                let allow_exit = app.state::<ExitState>().0.load(Ordering::SeqCst);
+
+                if !allow_exit {
+                    api.prevent_exit();
+                    hide_main_window(app);
+                }
+            }
+        });
 }
