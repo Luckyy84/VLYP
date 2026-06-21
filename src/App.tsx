@@ -15,15 +15,6 @@ interface CaptureSource {
   refreshRate?: number;
 }
 
-interface EncoderCapability {
-  id: string;
-  name: string;
-  codec: string;
-  hardwarePreferred: boolean;
-  available: boolean;
-  note: string;
-}
-
 interface CaptureTelemetry {
   state: RecorderState;
   sourceName?: string;
@@ -64,13 +55,219 @@ const idleTelemetry: CaptureTelemetry = {
 };
 
 function formatBytes(bytes: number) {
+  if (bytes <= 0) return "0 MB";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function formatDuration(seconds: number) {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+function getClipName(path: string) {
+  return path.split(/[\\/]/).pop() || "Untitled clip";
+}
+
+function stateToStatus(state: RecorderState) {
+  if (state === "recording" || state === "starting") return "recording";
+  if (state === "failed") return "failed";
+  return "ready";
+}
+
+function statusLabel(state: RecorderState) {
+  if (state === "recording" || state === "starting") return "Recording";
+  if (state === "failed") return "Failed";
+  return "Ready";
+}
+
+function Hotkey({ keys }: { keys: string[] }) {
+  return (
+    <div className="hotkey">
+      {keys.map((key, index) => (
+        <span key={`${key}-${index}`}>{key}</span>
+      ))}
+    </div>
+  );
+}
+
+function StatusPill({ state }: { state: RecorderState }) {
+  return (
+    <div className={`status-pill ${stateToStatus(state)}`}>
+      <span />
+      <b>{statusLabel(state)}</b>
+    </div>
+  );
+}
+
+function AppHeader({ state }: { state: RecorderState }) {
+  return (
+    <header className="app-header">
+      <div className="brand-wordmark">VLYP</div>
+      <div className="header-right">
+        <StatusPill state={state} />
+        <button className="icon-button" type="button" aria-label="Settings">⚙</button>
+      </div>
+    </header>
+  );
+}
+
+function PrimaryActions({
+  active,
+  busy,
+  canSave,
+  toggleRecording,
+  saveReplay,
+}: {
+  active: boolean;
+  busy: boolean;
+  canSave: boolean;
+  toggleRecording: () => void;
+  saveReplay: () => void;
+}) {
+  return (
+    <section className="primary-actions">
+      <div className="action-group">
+        <button
+          type="button"
+          onClick={toggleRecording}
+          disabled={busy}
+          className={active ? "main-action recording" : "main-action"}
+        >
+          <span />
+          {active ? "Stop Recording" : "Start Recording"}
+        </button>
+        <div className="action-meta">
+          <span>Start / Stop</span>
+          <Hotkey keys={["Ctrl", "Shift", "F9"]} />
+        </div>
+      </div>
+
+      <div className="action-group replay-group">
+        <button
+          type="button"
+          onClick={saveReplay}
+          disabled={busy || !canSave}
+          className="secondary-action"
+        >
+          Save Last Replay
+        </button>
+        <div className="action-meta">
+          <span>Save Replay</span>
+          <Hotkey keys={["Ctrl", "Shift", "F10"]} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CaptureSettings({
+  active,
+  sources,
+  sourceId,
+  setSourceId,
+  bufferSeconds,
+  setBufferSeconds,
+  bitrateMbps,
+  setBitrateMbps,
+  captureCursor,
+  setCaptureCursor,
+}: {
+  active: boolean;
+  sources: CaptureSource[];
+  sourceId: string;
+  setSourceId: (value: string) => void;
+  bufferSeconds: number;
+  setBufferSeconds: (value: number) => void;
+  bitrateMbps: number;
+  setBitrateMbps: (value: number) => void;
+  captureCursor: boolean;
+  setCaptureCursor: (value: boolean) => void;
+}) {
+  return (
+    <section className="settings-grid" aria-label="Capture settings">
+      <label>
+        <span>Source</span>
+        <select value={sourceId} disabled={active} onChange={(event) => setSourceId(event.target.value)}>
+          {sources.length === 0 ? (
+            <option value="">No source found</option>
+          ) : (
+            sources.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.kind === "monitor" ? "Display" : source.processName ?? "Window"} · {source.name}
+              </option>
+            ))
+          )}
+        </select>
+      </label>
+
+      <label>
+        <span>Replay Length</span>
+        <select value={bufferSeconds} disabled={active} onChange={(event) => setBufferSeconds(Number(event.target.value))}>
+          <option value={30}>30 seconds</option>
+          <option value={60}>1 minute</option>
+          <option value={120}>2 minutes</option>
+          <option value={300}>5 minutes</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Quality</span>
+        <select value={bitrateMbps} disabled={active} onChange={(event) => setBitrateMbps(Number(event.target.value))}>
+          <option value={10}>Small · 10 Mbps</option>
+          <option value={20}>Balanced · 20 Mbps</option>
+          <option value={35}>High · 35 Mbps</option>
+          <option value={60}>Max · 60 Mbps</option>
+        </select>
+      </label>
+
+      <label className="switch-row">
+        <input type="checkbox" checked={captureCursor} disabled={active} onChange={(event) => setCaptureCursor(event.target.checked)} />
+        <span>Cursor</span>
+      </label>
+    </section>
+  );
+}
+
+function RecentClips({ clips, copyPath }: { clips: ClipRecord[]; copyPath: (path: string) => void }) {
+  const recentClips = clips.slice(0, 3);
+
+  return (
+    <section className="recent-clips">
+      <div className="section-heading">
+        <h2>Recent Clips</h2>
+        <span>{clips.length} local</span>
+      </div>
+
+      <ul>
+        {recentClips.length === 0 ? (
+          <li className="empty-row">Your saved replays will appear here.</li>
+        ) : (
+          recentClips.map((clip) => (
+            <li key={clip.id}>
+              <div className="clip-thumb">
+                <span>{formatDuration(clip.durationSeconds)}</span>
+              </div>
+              <div className="clip-copy">
+                <strong>{getClipName(clip.path)}</strong>
+                <p>{formatDuration(clip.durationSeconds)} · {clip.width}×{clip.height}</p>
+              </div>
+              <div className="clip-actions">
+                <button type="button" disabled>Trim</button>
+                <button type="button" onClick={() => copyPath(clip.path)}>Folder</button>
+              </div>
+            </li>
+          ))
+        )}
+      </ul>
+    </section>
+  );
+}
+
 function App() {
   const [sources, setSources] = useState<CaptureSource[]>([]);
-  const [encoders, setEncoders] = useState<EncoderCapability[]>([]);
   const [clips, setClips] = useState<ClipRecord[]>([]);
   const [telemetry, setTelemetry] = useState(idleTelemetry);
   const [sourceId, setSourceId] = useState("");
@@ -78,7 +275,11 @@ function App() {
   const [bitrateMbps, setBitrateMbps] = useState(20);
   const [captureCursor, setCaptureCursor] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
+
+  const active = telemetry.state === "recording" || telemetry.state === "starting";
+  const selectedSource = useMemo(() => sources.find((source) => source.id === sourceId), [sourceId, sources]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -89,14 +290,21 @@ function App() {
   }, []);
 
   const refreshClips = useCallback(async () => {
-    setClips(await invoke<ClipRecord[]>("list_clips"));
+    try {
+      setClips(await invoke<ClipRecord[]>("list_clips"));
+    } catch (reason) {
+      setError(String(reason));
+    }
   }, []);
 
   const saveReplay = useCallback(async () => {
     setBusy(true);
+    setNotice(undefined);
     setError(undefined);
+
     try {
-      await invoke<ClipRecord>("save_replay", { request: { durationSeconds: bufferSeconds } });
+      const clip = await invoke<ClipRecord>("save_replay", { request: { durationSeconds: bufferSeconds } });
+      setNotice(`Saved ${getClipName(clip.path)}`);
       await refreshClips();
     } catch (reason) {
       setError(String(reason));
@@ -105,36 +313,15 @@ function App() {
     }
   }, [bufferSeconds, refreshClips]);
 
-  useEffect(() => {
-    Promise.all([
-      invoke<CaptureSource[]>("list_capture_sources"),
-      invoke<EncoderCapability[]>("list_encoder_capabilities"),
-      refreshClips(),
-    ])
-      .then(([nextSources, nextEncoders]) => {
-        setSources(nextSources);
-        setEncoders(nextEncoders);
-        setSourceId(nextSources.find((source) => source.kind === "monitor")?.id ?? nextSources[0]?.id ?? "");
-      })
-      .catch((reason) => setError(String(reason)));
-
-    const timer = window.setInterval(refreshStatus, 1000);
-    const unlisten = listen("vlyp://save-replay", saveReplay);
-    return () => {
-      window.clearInterval(timer);
-      void unlisten.then((dispose) => dispose());
-    };
-  }, [refreshClips, refreshStatus, saveReplay]);
-
-  const active = telemetry.state === "recording" || telemetry.state === "starting";
-  const selectedSource = useMemo(() => sources.find((source) => source.id === sourceId), [sourceId, sources]);
-
-  async function toggleReplay() {
+  const toggleRecording = useCallback(async () => {
     setBusy(true);
+    setNotice(undefined);
     setError(undefined);
+
     try {
       if (active) {
         await invoke("stop_replay");
+        setNotice("Recording stopped");
       } else {
         await invoke("start_replay", {
           config: {
@@ -146,61 +333,95 @@ function App() {
             captureCursor,
           },
         });
+        setNotice("Recording started");
       }
+
       await refreshStatus();
     } catch (reason) {
       setError(String(reason));
     } finally {
       setBusy(false);
     }
-  }
+  }, [active, bitrateMbps, bufferSeconds, captureCursor, refreshStatus, selectedSource?.refreshRate, sourceId]);
+
+  const copyPath = useCallback(async (path: string) => {
+    try {
+      await navigator.clipboard.writeText(path);
+      setNotice("Clip path copied");
+    } catch (reason) {
+      setError(String(reason));
+    }
+  }, []);
+
+  useEffect(() => {
+    invoke<CaptureSource[]>("list_capture_sources")
+      .then((nextSources) => {
+        setSources(nextSources);
+        setSourceId(nextSources.find((source) => source.kind === "monitor")?.id ?? nextSources[0]?.id ?? "");
+      })
+      .catch((reason) => setError(String(reason)));
+
+    void refreshClips();
+    void refreshStatus();
+
+    const timer = window.setInterval(refreshStatus, 1000);
+    const unlistenSave = listen("vlyp://save-replay", saveReplay);
+    const unlistenToggle = listen("vlyp://toggle-replay", toggleRecording);
+
+    return () => {
+      window.clearInterval(timer);
+      void unlistenSave.then((dispose) => dispose());
+      void unlistenToggle.then((dispose) => dispose());
+    };
+  }, [refreshClips, refreshStatus, saveReplay, toggleRecording]);
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand"><img src="/vlyp-icon.png" alt="" /><span>VLYP</span><b>Capture Lab</b></div>
-        <div className={`status ${telemetry.state}`}><i />{telemetry.state}</div>
-      </header>
+    <div className="page-shell">
+      <div className="app-frame">
+        <AppHeader state={telemetry.state} />
 
-      <section className="hero">
-        <div>
-          <p className="eyebrow">LOCAL REPLAY ENGINE</p>
-          <h1>Keep the moment.<br /><span>Skip the overhead.</span></h1>
-          <p className="lede">Native Windows capture with continuous Media Foundation encoding and a disk-backed replay buffer.</p>
-        </div>
-        <div className="controls">
-          <label>Capture source
-            <select value={sourceId} disabled={active} onChange={(event) => setSourceId(event.target.value)}>
-              {sources.map((source) => <option key={source.id} value={source.id}>{source.kind === "monitor" ? "Display" : source.processName ?? "Window"} · {source.name} · {source.width}×{source.height}</option>)}
-            </select>
-          </label>
-          <div className="control-grid">
-            <label>Replay length<select value={bufferSeconds} disabled={active} onChange={(event) => setBufferSeconds(Number(event.target.value))}><option value={30}>30 seconds</option><option value={60}>60 seconds</option><option value={120}>2 minutes</option><option value={300}>5 minutes</option></select></label>
-            <label>Bitrate<select value={bitrateMbps} disabled={active} onChange={(event) => setBitrateMbps(Number(event.target.value))}><option value={10}>10 Mbps</option><option value={20}>20 Mbps</option><option value={35}>35 Mbps</option><option value={60}>60 Mbps</option></select></label>
-          </div>
-          <label className="check"><input type="checkbox" checked={captureCursor} disabled={active} onChange={(event) => setCaptureCursor(event.target.checked)} /> Capture cursor</label>
-          <div className="actions">
-            <button className={active ? "stop" : "primary"} disabled={busy || !sourceId} onClick={toggleReplay}>{active ? "Stop replay" : "Start replay"}</button>
-            <button disabled={busy || !active || telemetry.segmentCount === 0} onClick={saveReplay}>Save last {bufferSeconds}s</button>
-          </div>
-          <small>Global save hotkey: Ctrl + Shift + F10</small>
-        </div>
-      </section>
+        <main className="home-content">
+          <PrimaryActions
+            active={active}
+            busy={busy || !sourceId}
+            canSave={active && telemetry.segmentCount > 0}
+            toggleRecording={toggleRecording}
+            saveReplay={saveReplay}
+          />
 
-      {error && <div className="error"><strong>Capture error</strong><span>{error}</span><button onClick={() => setError(undefined)}>Dismiss</button></div>}
+          <CaptureSettings
+            active={active}
+            sources={sources}
+            sourceId={sourceId}
+            setSourceId={setSourceId}
+            bufferSeconds={bufferSeconds}
+            setBufferSeconds={setBufferSeconds}
+            bitrateMbps={bitrateMbps}
+            setBitrateMbps={setBitrateMbps}
+            captureCursor={captureCursor}
+            setCaptureCursor={setCaptureCursor}
+          />
 
-      <section className="metrics">
-        <article><span>Source</span><strong>{telemetry.width ? `${telemetry.width}×${telemetry.height}` : "Ready"}</strong><small>{telemetry.sourceName ?? selectedSource?.name ?? "No source"}</small></article>
-        <article><span>Delivered rate</span><strong>{telemetry.frameRate.toFixed(1)} FPS</strong><small>{telemetry.framesEncoded.toLocaleString()} frames encoded</small></article>
-        <article><span>Replay buffer</span><strong>{telemetry.bufferedSeconds.toFixed(1)}s</strong><small>{telemetry.segmentCount} segments · {formatBytes(telemetry.bufferBytes)}</small></article>
-        <article><span>Frame drops</span><strong>{telemetry.droppedFrames}</strong><small>Capture pipeline reported</small></article>
-      </section>
+          {(error || telemetry.lastError || notice) && (
+            <div className={error || telemetry.lastError ? "message error" : "message"}>
+              <span>{error ?? telemetry.lastError ?? notice}</span>
+              <button type="button" onClick={() => { setError(undefined); setNotice(undefined); }}>Dismiss</button>
+            </div>
+          )}
 
-      <section className="lower-grid">
-        <article className="panel"><header><div><p className="eyebrow">ENCODING</p><h2>Available paths</h2></div></header>{encoders.map((encoder) => <div className="encoder" key={encoder.id}><i className={encoder.available ? "ok" : ""} /><div><strong>{encoder.name}</strong><p>{encoder.note}</p></div><span>{encoder.hardwarePreferred ? "GPU" : "CPU"}</span></div>)}</article>
-        <article className="panel"><header><div><p className="eyebrow">LIBRARY</p><h2>Recent captures</h2></div><span>{clips.length}</span></header>{clips.length === 0 ? <div className="empty">Your saved replays will appear here.</div> : clips.slice(0, 5).map((clip) => <div className="clip" key={clip.id}><div className="clip-mark">V</div><div><strong>{new Date(clip.createdAt).toLocaleString()}</strong><p>{clip.durationSeconds.toFixed(1)}s · {clip.width}×{clip.height}</p></div></div>)}</article>
-      </section>
-    </main>
+          <div className="divider" />
+
+          <RecentClips clips={clips} copyPath={copyPath} />
+
+          <section className="micro-stats" aria-label="Capture stats">
+            <div><span>Buffer</span><strong>{telemetry.bufferedSeconds.toFixed(1)}s</strong></div>
+            <div><span>FPS</span><strong>{telemetry.frameRate.toFixed(1)}</strong></div>
+            <div><span>Size</span><strong>{formatBytes(telemetry.bufferBytes)}</strong></div>
+            <div><span>Source</span><strong>{telemetry.sourceName ?? selectedSource?.name ?? "None"}</strong></div>
+          </section>
+        </main>
+      </div>
+    </div>
   );
 }
 
