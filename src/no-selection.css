@@ -1,0 +1,18 @@
+/* Prevent the app chrome from showing the default blue text-selection blocks when dragging around the UI. */
+body,
+button,
+.vlyp-shell,
+.vlyp-shell *:not(input):not(textarea) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+::selection {
+  background: transparent;
+}
+
+input::selection,
+textarea::selection {
+  color: #f5f7fb;
+  background: #4dff8f33;
+}
