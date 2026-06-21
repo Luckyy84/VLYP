@@ -7,9 +7,11 @@ mod state;
 mod storage;
 mod types;
 
-use tauri::{Emitter, Manager, WindowEvent};
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Emitter, Manager, WindowEvent,
+};
 use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -17,6 +19,12 @@ fn show_main_window(app: &tauri::AppHandle) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+    }
+}
+
+fn hide_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
     }
 }
 
@@ -32,6 +40,7 @@ pub fn run() {
             );
 
             let show_item = MenuItem::with_id(app, "show", "Show VLYP", true, None::<&str>)?;
+            let hide_item = MenuItem::with_id(app, "hide", "Hide VLYP", true, None::<&str>)?;
             let toggle_replay_item =
                 MenuItem::with_id(app, "toggle_replay", "Start / Stop Replay", true, None::<&str>)?;
             let save_replay_item =
@@ -39,7 +48,13 @@ pub fn run() {
             let quit_item = MenuItem::with_id(app, "quit", "Quit VLYP", true, None::<&str>)?;
             let tray_menu = Menu::with_items(
                 app,
-                &[&show_item, &toggle_replay_item, &save_replay_item, &quit_item],
+                &[
+                    &show_item,
+                    &hide_item,
+                    &toggle_replay_item,
+                    &save_replay_item,
+                    &quit_item,
+                ],
             )?;
 
             let mut tray_builder = TrayIconBuilder::new()
@@ -48,6 +63,7 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => show_main_window(app),
+                    "hide" => hide_main_window(app),
                     "toggle_replay" => {
                         show_main_window(app);
                         let _ = app.emit("vlyp://toggle-replay", ());
@@ -73,7 +89,7 @@ pub fn run() {
                 tray_builder = tray_builder.icon(icon.clone());
             }
 
-            let _tray = tray_builder.build(app)?;
+            tray_builder.build(app)?;
 
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
