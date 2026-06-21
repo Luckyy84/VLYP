@@ -118,6 +118,9 @@ function App() {
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
 
+  const active = telemetry.state === "recording" || telemetry.state === "starting";
+  const selectedSource = useMemo(() => sources.find((source) => source.id === sourceId), [sourceId, sources]);
+
   const refreshStatus = useCallback(async () => {
     try {
       setTelemetry(await invoke<CaptureTelemetry>("get_capture_status"));
@@ -146,47 +149,7 @@ function App() {
     }
   }, [bufferSeconds, refreshClips]);
 
-  useEffect(() => {
-    Promise.all([
-      invoke<CaptureSource[]>("list_capture_sources"),
-      invoke<EncoderCapability[]>("list_encoder_capabilities"),
-      refreshClips(),
-    ])
-      .then(([nextSources, nextEncoders]) => {
-        setSources(nextSources);
-        setEncoders(nextEncoders);
-        setSourceId(nextSources.find((source) => source.kind === "monitor")?.id ?? nextSources[0]?.id ?? "");
-      })
-      .catch((reason) => setError(String(reason)));
-
-    void refreshStatus();
-
-    const timer = window.setInterval(refreshStatus, 1000);
-    const unlisten = listen("vlyp://save-replay", saveReplay);
-
-    return () => {
-      window.clearInterval(timer);
-      void unlisten.then((dispose) => dispose());
-    };
-  }, [refreshClips, refreshStatus, saveReplay]);
-
-  const active = telemetry.state === "recording" || telemetry.state === "starting";
-  const selectedSource = useMemo(() => sources.find((source) => source.id === sourceId), [sourceId, sources]);
-
-  const filteredClips = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) return clips;
-    return clips.filter((clip) => getClipName(clip.path).toLowerCase().includes(query));
-  }, [clips, searchTerm]);
-
-  const availableEncoders = useMemo(() => encoders.filter((encoder) => encoder.available), [encoders]);
-
-  const totalClipTime = useMemo(
-    () => clips.reduce((total, clip) => total + clip.durationSeconds, 0),
-    [clips],
-  );
-
-  async function toggleReplay() {
+  const toggleReplay = useCallback(async () => {
     setBusy(true);
     setNotice(undefined);
     setError(undefined);
@@ -215,7 +178,46 @@ function App() {
     } finally {
       setBusy(false);
     }
-  }
+  }, [active, bitrateMbps, bufferSeconds, captureCursor, refreshStatus, selectedSource?.refreshRate, sourceId]);
+
+  useEffect(() => {
+    Promise.all([
+      invoke<CaptureSource[]>("list_capture_sources"),
+      invoke<EncoderCapability[]>("list_encoder_capabilities"),
+      refreshClips(),
+    ])
+      .then(([nextSources, nextEncoders]) => {
+        setSources(nextSources);
+        setEncoders(nextEncoders);
+        setSourceId(nextSources.find((source) => source.kind === "monitor")?.id ?? nextSources[0]?.id ?? "");
+      })
+      .catch((reason) => setError(String(reason)));
+
+    void refreshStatus();
+
+    const timer = window.setInterval(refreshStatus, 1000);
+    const unlistenSave = listen("vlyp://save-replay", saveReplay);
+    const unlistenToggle = listen("vlyp://toggle-replay", toggleReplay);
+
+    return () => {
+      window.clearInterval(timer);
+      void unlistenSave.then((dispose) => dispose());
+      void unlistenToggle.then((dispose) => dispose());
+    };
+  }, [refreshClips, refreshStatus, saveReplay, toggleReplay]);
+
+  const filteredClips = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return clips;
+    return clips.filter((clip) => getClipName(clip.path).toLowerCase().includes(query));
+  }, [clips, searchTerm]);
+
+  const availableEncoders = useMemo(() => encoders.filter((encoder) => encoder.available), [encoders]);
+
+  const totalClipTime = useMemo(
+    () => clips.reduce((total, clip) => total + clip.durationSeconds, 0),
+    [clips],
+  );
 
   async function copyPath(path: string) {
     try {
